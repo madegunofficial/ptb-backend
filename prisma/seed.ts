@@ -1,10 +1,10 @@
 /**
  * @file ptb-backend/prisma/seed.ts
- * @description Initial Seed data script for Putra Tresna FC Backend
+ * @description Idempotent seed data script for Putra Tresna FC Backend
  */
 
 import { PrismaClient, Role, LicenseLevel, Position, StudentStatus, AttendanceStatus, PaymentStatus } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -27,7 +27,7 @@ async function main() {
     },
   });
 
-  // 2. Coaches
+  // 2. Coach User & Coach Profile
   const coachUser1 = await prisma.user.upsert({
     where: { email: 'coach.guna@ptbfc.com' },
     update: {},
@@ -40,8 +40,10 @@ async function main() {
     },
   });
 
-  const coach1 = await prisma.coach.create({
-    data: {
+  const coach1 = await prisma.coach.upsert({
+    where: { userId: coachUser1.id },
+    update: {},
+    create: {
       userId: coachUser1.id,
       licenseNumber: 'LIC-AFC-1029',
       licenseLevel: LicenseLevel.AFC_C,
@@ -52,8 +54,10 @@ async function main() {
   });
 
   // 3. Age Groups
-  const ageGroupU12 = await prisma.ageGroup.create({
-    data: {
+  const ageGroupU12 = await prisma.ageGroup.upsert({
+    where: { name: 'Kelompok U-12' },
+    update: {},
+    create: {
       name: 'Kelompok U-12',
       minAge: 11,
       maxAge: 12,
@@ -77,8 +81,10 @@ async function main() {
     },
   });
 
-  const student1 = await prisma.student.create({
-    data: {
+  const student1 = await prisma.student.upsert({
+    where: { registrationNumber: 'PTB-2026-001' },
+    update: {},
+    create: {
       registrationNumber: 'PTB-2026-001',
       birthDate: new Date('2014-05-12'),
       ageGroupId: ageGroupU12.id,
@@ -92,29 +98,41 @@ async function main() {
   });
 
   // 5. Sample Attendance
-  await prisma.attendance.create({
-    data: {
-      studentId: student1.id,
-      sessionDate: new Date('2026-07-20'),
-      status: AttendanceStatus.PRESENT,
-      notes: 'Hadir penuh, stamina sangat baik.',
-      recordedById: adminUser.id,
-    },
+  const existingAttendance = await prisma.attendance.findFirst({
+    where: { studentId: student1.id },
   });
+
+  if (!existingAttendance) {
+    await prisma.attendance.create({
+      data: {
+        studentId: student1.id,
+        sessionDate: new Date('2026-07-20'),
+        status: AttendanceStatus.PRESENT,
+        notes: 'Hadir penuh, stamina sangat baik.',
+        recordedById: adminUser.id,
+      },
+    });
+  }
 
   // 6. Sample Payment
-  await prisma.payment.create({
-    data: {
-      studentId: student1.id,
-      periodMonth: 7,
-      periodYear: 2026,
-      amount: 350000,
-      status: PaymentStatus.PAID,
-      paidAt: new Date('2026-07-05'),
-    },
+  const existingPayment = await prisma.payment.findFirst({
+    where: { studentId: student1.id, periodMonth: 7, periodYear: 2026 },
   });
 
-  console.log('✅ Seeding completed successfully!');
+  if (!existingPayment) {
+    await prisma.payment.create({
+      data: {
+        studentId: student1.id,
+        periodMonth: 7,
+        periodYear: 2026,
+        amount: 350000,
+        status: PaymentStatus.PAID,
+        paidAt: new Date('2026-07-05'),
+      },
+    });
+  }
+
+  console.log('✅ Seeding completed successfully (Idempotent)!');
 }
 
 main()
@@ -125,5 +143,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-```
-
