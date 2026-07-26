@@ -1,0 +1,53 @@
+# @file ptb-backend/docker-compose.yml
+# @description Docker Compose configuration for NestJS, PostgreSQL, and Redis
+
+version: '3.8'
+
+services:
+  ptb-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ptb_backend_app
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ptb_academy_db?schema=public
+      - NODE_ENV=production
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ptb-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: ptb_postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ptb_academy_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ptb-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ptb_redis_cache
+    restart: always
+    ports:
+      - '6379:6379'
+    networks:
+      - ptb-network
+
+networks:
+  ptb-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

@@ -1,0 +1,366 @@
+// @file ptb-backend/prisma/schema.prisma
+// @description Database schema for Putra Tresna FC Backend
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
+enum Role {
+  ADMIN
+  COACH
+  PARENT
+  STUDENT
+}
+
+enum LicenseLevel {
+  NATIONAL_C
+  NATIONAL_B
+  NATIONAL_A
+  AFC_C
+  AFC_B
+  AFC_A
+}
+
+enum Position {
+  GK
+  CB
+  RB
+  LB
+  CDM
+  CM
+  CAM
+  RW
+  LW
+  ST
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  SUSPENDED
+}
+
+enum SessionType {
+  REGULAR_PRACTICE
+  PHYSICAL_TRAINING
+  SPARRING
+  TACTICAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  PERMIT
+  SICK
+  ABSENT
+}
+
+enum TournamentType {
+  FRIENDLY
+  OFFICIAL_TOURNAMENT
+  INTERNAL_MATCH
+}
+
+enum TournamentStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  PENDING
+  REVIEWED
+  TRIAL_SCHEDULED
+  ACCEPTED
+  REJECTED
+}
+
+enum NewsCategory {
+  PRESTASI
+  PENGUMUMAN
+  JADWAL
+  EVENT
+}
+
+enum AchievementLevel {
+  KOTA
+  REGIONAL
+  NASIONAL
+  INTERNASIONAL
+}
+
+enum PaymentMethod {
+  QRIS
+  CASH
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  EXPIRED
+}
+
+// ------------------------------------------------------
+// MODELS
+// ------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  phone        String
+  passwordHash String
+  role         Role      @default(PARENT)
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  coachProfile   Coach?
+  parentStudents Student[]      @relation("ParentStudents")
+  userStudent    Student?       @relation("StudentUser")
+  attendances    Attendance[]   @relation("RecordedBy")
+  newsArticles   News[]
+  aboutUpdates   About[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Coach {
+  id               String       @id @default(uuid())
+  userId           String       @unique
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  licenseNumber    String
+  licenseLevel     LicenseLevel @default(NATIONAL_C)
+  specialization   String
+  experienceYears  Int          @default(1)
+  joinedDate       DateTime     @default(now())
+  biography        String?
+  achievements     String[]
+
+  ageGroups       AgeGroup[]
+  assignedStudents Student[]
+  reportCards      ReportCard[]
+}
+
+model AgeGroup {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  minAge       Int
+  maxAge       Int
+  coachId      String?
+  coach        Coach?    @relation(fields: [coachId], references: [id], onDelete: SetNull)
+  scheduleDays String[]
+  scheduleTime String
+  maxCapacity  Int       @default(25)
+
+  students      Student[]
+  tournaments   Tournament[]
+  registrations Registration[]
+}
+
+model Student {
+  id                 String        @id @default(uuid())
+  userId             String?       @unique
+  user               User?         @relation("StudentUser", fields: [userId], references: [id], onDelete: SetNull)
+  registrationNumber String        @unique
+  birthDate          DateTime
+  ageGroupId         String
+  ageGroup           AgeGroup      @relation(fields: [ageGroupId], references: [id])
+  coachId            String?
+  coach              Coach?        @relation(fields: [coachId], references: [id], onDelete: SetNull)
+  parentId           String?
+  parent             User?         @relation("ParentStudents", fields: [parentId], references: [id], onDelete: SetNull)
+  position           Position      @default(CM)
+  jerseyNumber       Int?
+  joinDate           DateTime      @default(now())
+  status             StudentStatus @default(ACTIVE)
+  medicalNotes       String?
+  address            String
+
+  attendances  Attendance[]
+  reportCards  ReportCard[]
+  payments     Payment[]
+
+  @@index([ageGroupId])
+  @@index([parentId])
+  @@index([registrationNumber])
+}
+
+model Attendance {
+  id          String           @id @default(uuid())
+  studentId   String
+  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  sessionDate DateTime
+  sessionType SessionType      @default(REGULAR_PRACTICE)
+  status      AttendanceStatus @default(PRESENT)
+  notes       String?
+  recordedById String?
+  recordedBy  User?            @relation("RecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  recordedAt  DateTime         @default(now())
+
+  @@index([studentId])
+  @@index([sessionDate])
+}
+
+model ReportCard {
+  id             String   @id @default(uuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  period         String
+  coachId        String
+  coach          Coach    @relation(fields: [coachId], references: [id])
+  ballControl    Float    @default(7.0)
+  passing        Float    @default(7.0)
+  shooting       Float    @default(7.0)
+  dribbling      Float    @default(7.0)
+  heading        Float    @default(7.0)
+  speed          Float    @default(7.0)
+  stamina        Float    @default(7.0)
+  strength       Float    @default(7.0)
+  agility        Float    @default(7.0)
+  positioning    Float    @default(7.0)
+  teamwork       Float    @default(7.0)
+  decisionMaking Float    @default(7.0)
+  discipline     Float    @default(7.0)
+  attitude       Float    @default(7.0)
+  sportsmanship  Float    @default(7.0)
+  overallScore   Float    @default(7.0)
+  coachNotes     String
+  recommendation String?
+  publishedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@index([studentId])
+}
+
+model Tournament {
+  id          String           @id @default(uuid())
+  title       String
+  type        TournamentType   @default(FRIENDLY)
+  ageGroupId  String?
+  ageGroup    AgeGroup?        @relation(fields: [ageGroupId], references: [id], onDelete: SetNull)
+  opponent    String
+  venue       String
+  eventDate   DateTime
+  eventTime   String
+  resultHome  Int?
+  resultAway  Int?
+  status      TournamentStatus @default(UPCOMING)
+  description String?
+  galleryUrls String[]
+  createdAt   DateTime         @default(now())
+
+  @@index([status])
+  @@index([eventDate])
+}
+
+model Registration {
+  id                 String             @id @default(uuid())
+  applicantName      String
+  birthDate          DateTime
+  parentName         String
+  parentPhone        String
+  parentEmail        String?
+  address            String
+  previousClub       String?
+  desiredAgeGroupId  String
+  desiredAgeGroup    AgeGroup           @relation(fields: [desiredAgeGroupId], references: [id])
+  medicalInfo        String?
+  status             RegistrationStatus @default(PENDING)
+  trialDate          DateTime?
+  submittedAt        DateTime           @default(now())
+}
+
+model News {
+  id            String       @id @default(uuid())
+  title         String
+  slug          String       @unique
+  category      NewsCategory @default(PENGUMUMAN)
+  content       String
+  coverImageUrl String?
+  authorId      String
+  author        User         @relation(fields: [authorId], references: [id])
+  isPublished   Boolean      @default(true)
+  publishedAt   DateTime     @default(now())
+  tags          String[]
+  createdAt     DateTime     @default(now())
+
+  @@index([slug])
+  @@index([category])
+}
+
+model Album {
+  id          String   @id @default(uuid())
+  name        String
+  coverUrl    String?
+  eventDate   DateTime
+  description String?
+
+  photos GalleryPhoto[]
+}
+
+model GalleryPhoto {
+  id         String   @id @default(uuid())
+  title      String
+  imageUrl   String
+  albumId    String
+  album      Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  tags       String[]
+  uploadedAt DateTime @default(now())
+
+  @@index([albumId])
+}
+
+model Achievement {
+  id              String           @id @default(uuid())
+  title           String
+  competitionName String
+  level           AchievementLevel @default(REGIONAL)
+  year            Int
+  ageGroup        String
+  description     String?
+  photoUrl        String?
+
+  @@index([year])
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  studentId         String
+  student           Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  periodMonth       Int
+  periodYear        Int
+  amount            Float         @default(350000)
+  paymentMethod     PaymentMethod @default(QRIS)
+  qrisTransactionId String?
+  status            PaymentStatus @default(UNPAID)
+  paidAt            DateTime?
+  notes             String?
+  createdAt         DateTime      @default(now())
+
+  @@index([studentId])
+  @@index([periodMonth, periodYear])
+}
+
+model About {
+  id             String   @id @default(uuid())
+  backgroundText String
+  vision         String
+  missions       String[]
+  updatedAt      DateTime @updatedAt
+  updatedById    String
+  updatedBy      User     @relation(fields: [updatedById], references: [id])
+}
